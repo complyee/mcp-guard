@@ -1,6 +1,6 @@
 {
   "name": "@complyee/mcp-guard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Customer-run policy guard for MCP tool servers: runs a tool only on a verified Agent Control Room grant for exactly that call.",
   "license": "Apache-2.0",
   "author": "Complyee AB",
@@ -15,8 +15,13 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "mcp-server",
+    "mcp-security",
     "ai-agents",
-    "policy",
+    "agent-security",
+    "ai-governance",
+    "policy-enforcement",
+    "guardrails",
     "authorization",
     "jwt",
     "jwks",
