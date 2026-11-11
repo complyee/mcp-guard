@@ -1,21 +1,11 @@
-# @complyee/mcp-guard
+# MCP guard (`@complyee/mcp-guard`)
 
 A customer-run companion that puts an Agent Control Room grant check in front of
 any MCP tool. It does the repeatable work — fingerprinting, asking, waiting for a
 person, claiming, verifying the grant token and reporting the outcome — so the
 tool author supplies only the action name and the context facts rules need.
 
-Status: 0.1 (beta). Zero runtime dependencies; Node.js 20 or later (or any runtime
-with WebCrypto Ed25519 and `fetch`).
-
-```bash
-npm install @complyee/mcp-guard
-```
-
-[Agent Control Room](https://agent-cr.com) is the decision point; this package is
-the enforcement point that runs inside your MCP server. See
-[agent-cr.com/plugins](https://agent-cr.com/plugins) and
-[agent-cr.com/enforcement-point](https://agent-cr.com/enforcement-point).
+Status: published as `@complyee/mcp-guard` (npm) from github.com/complyee/mcp-guard. This folder is the source; push every change there. The code lives in the ACR repository with its tests.
 
 ## Use
 
@@ -35,13 +25,18 @@ const guard = createMcpGuard({
 
 server.registerTool(
   "issue_refund",
-  { description: "Refund a payment", inputSchema: { paymentId: z.string(), amount: z.number() } },
+  { description: "Refund a payment", inputSchema: { refundRequestId: z.string(), paymentId: z.string(), amount: z.number() } },
   guard.tool("issue_refund", {
     action: "payment.refund",                        // defaults to the tool name
     context: (args) => ({ amount: args.amount }),    // facts your rules read
     execute: async (args, grant) => {
       // Runs only on a verified grant for exactly these arguments.
-      await payments.refund(args, { idempotencyKey: grant.decisionId });
+      // The idempotency key is your stable business reference, never grant.decisionId:
+      // a retry is a new decision with a new id. decisionId is the audit reference.
+      await payments.refund(args, {
+        idempotencyKey: args.refundRequestId,
+        metadata: { acrDecisionId: grant.decisionId },
+      });
       return { content: [{ type: "text", text: `Refunded ${args.amount}.` }] };
     },
   }),
@@ -70,6 +65,21 @@ server.registerTool(
 5. The tool runs, and `reportExecutionOutcome` records `executed` or
    `downstream_error`. A failed report never changes the tool result.
 
+## Retries and duplicate execution
+
+A grant authorises one decision; it is not a lock on the work. If a call times
+out and the agent or client retries, the guard asks again and Agent Control Room
+returns a **new decision with a new `decisionId`**. Using `decisionId` as the
+downstream idempotency key would therefore let the retry execute twice.
+
+- Give the downstream system a **stable business reference** as its idempotency
+  key (a refund request id, transfer id or order id that stays the same across
+  retries), and let that system refuse duplicates.
+- Keep `decisionId` as the **audit reference** (metadata on the downstream
+  record) so the action can be traced back to its decision.
+- Prefer a business reference supplied by your own system over one the model
+  invents; a model can produce a fresh id on every attempt.
+
 ## Fail closed
 
 A refusal, an unreachable engine, unavailable keys, a missing token or a token
@@ -81,18 +91,8 @@ There is no fallback from a rejected token to another format.
 An offline check cannot see a revocation made after the grant was issued; for a
 high-value step also call `verifyDecision` before acting.
 
-## Development
+## Extracting into a package
 
-```bash
-npm install
-npm run typecheck && npm test && npm run build
-```
-
-`test/conformance-vectors.json` and `test/fixtures/grant.json` are generated from
-Agent Control Room's own code and are shared with the Python companion
-([complyee/agent-guard-python](https://github.com/complyee/agent-guard-python)),
-so all three hash and verify identically. Do not edit them by hand.
-
-## License
-
-Apache License 2.0 — see [LICENSE](LICENSE). Copyright Complyee AB.
+Copy this folder and `src/lib/tool-call-fingerprint.ts` (into `fingerprint.ts`).
+The conformance vector in `mcp-guard.test.ts` must keep passing so the guard and
+ACR always hash identically.
