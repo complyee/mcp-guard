@@ -1,5 +1,5 @@
 /**
- * Public types of the MCP guard companion (@complyee/mcp-guard).
+ * Public types of the MCP guard companion (future package @complyee/mcp-guard).
  * Self-contained: nothing here depends on the rest of the ACR codebase.
  */
 
@@ -92,8 +92,10 @@ export type GuardedToolOptions<Args extends Record<string, unknown>> = {
   /** Per-tool override of the approval behaviour. */
   approvals?: McpGuardConfig["approvals"];
   /**
-   * Runs only after a verified grant. Pass grant.decisionId to the downstream
-   * system as its idempotency key so a retry never does the work twice.
+   * Runs only after a verified grant. A retry after a timeout is a new decision
+   * with a new decisionId, so never use decisionId as the downstream idempotency
+   * key: pass a stable business reference (e.g. a refund request id) instead and
+   * keep decisionId as the audit reference.
    */
   execute: (args: Args, grant: VerifiedGrant, extra: ToolExtra) => Promise<ToolResult> | ToolResult;
 };
